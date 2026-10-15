@@ -101,6 +101,8 @@ let currentModel = "classic";
 let currentColor = colorInput.value;
 let zoom = 6;
 let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 50;
 
 function makeStarterTexture() {
   ctx.clearRect(0, 0, 64, 64);
@@ -124,7 +126,35 @@ function makeStarterTexture() {
 
 function saveUndo() {
   undoStack.push(ctx.getImageData(0, 0, 64, 64));
-  if (undoStack.length > 30) undoStack.shift();
+
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+
+  // Una nuova modifica invalida la cronologia futura.
+  redoStack = [];
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+
+  redoStack.push(ctx.getImageData(0, 0, 64, 64));
+
+  const previous = undoStack.pop();
+  ctx.putImageData(previous, 0, 0);
+
+  updatePreview();
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+
+  undoStack.push(ctx.getImageData(0, 0, 64, 64));
+
+  const next = redoStack.pop();
+  ctx.putImageData(next, 0, 0);
+
+  updatePreview();
 }
 
 function updatePreview() {
@@ -281,6 +311,31 @@ function downloadSkin() {
 
 $("#download").addEventListener("click", downloadSkin);
 $("#download-bottom").addEventListener("click", downloadSkin);
+$("#undo").addEventListener("click", undo);
+$("#redo").addEventListener("click", redo);
+
+document.addEventListener("keydown", event => {
+  const target = event.target;
+  const isTyping =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target?.isContentEditable;
+
+  if (isTyping || !(event.ctrlKey || event.metaKey)) return;
+
+  if (event.key.toLowerCase() === "z") {
+    event.preventDefault();
+
+    if (event.shiftKey) {
+      redo();
+    } else {
+      undo();
+    }
+  } else if (event.key.toLowerCase() === "y") {
+    event.preventDefault();
+    redo();
+  }
+});
 
 $("#upload").addEventListener("change", event => {
   const file = event.target.files?.[0];
